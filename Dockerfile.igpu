@@ -1,16 +1,7 @@
 # Use the base TensorRT image
-FROM nvcr.io/nvidia/l4t-tensorrt:r10.3.0-devel
+FROM dustynv/torch2trt:r36.4.0
 
 WORKDIR /usr/src
-
-RUN pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
-
-RUN sed -i 's/^import tensorrt/# import tensorrt/' setup.py && \
-    sed -i 's/version.parse(tensorrt.__version__)/version.parse("8")/' setup.py
-RUN perl -pi -e 'if (/plugins_ext_module = CUDAExtension\(/../^\s*\)/) { s/^/#/ }' setup.py
-RUN python3 setup.py install
-RUN CUDA_HOME=/usr/local/cuda PATH=$CUDA_HOME/bin:$PATH python3 setup.py build_ext --inplace && \
-    python3 setup.py install
 
 # Update and install python3-venv, clone the repository, and run the setup script
 RUN apt-get update && apt-get install -y \

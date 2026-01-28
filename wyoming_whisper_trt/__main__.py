@@ -16,7 +16,6 @@ import time
 from functools import partial
 from pathlib import Path
 
-from whisper.model import disable_sdpa
 from wyoming.info import AsrModel, AsrProgram, Attribution, Info
 from wyoming.server import AsyncServer
 
@@ -357,5 +356,4 @@ def run() -> None:
 
 if __name__ == "__main__":
     # SDPA fix for Whisper 20240930 and newer per https://github.com/openai/whisper/discussions/2423
-    with disable_sdpa():
         run()

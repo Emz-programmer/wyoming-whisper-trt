@@ -8,14 +8,16 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     ffmpeg \
     git \
-    && git clone -b docker-for-jetson --recursive Emz-programmer/wyoming-whisper-trt \
+    && git clone -b release/1.0.10 --recursive https://github.com/Jonah-May-OSS/wyoming-whisper-trt \
     && cd wyoming-whisper-trt \
     && chmod +x ./script/setup \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /
-COPY ./run.sh ./
+COPY ./run-jetson.sh ./
     
 EXPOSE 10300
+
+RUN rm -rf /root/.cache/whisper
     
-ENTRYPOINT ["bash", "/run.sh"]
+ENTRYPOINT ["bash", "/run-jetson.sh"]

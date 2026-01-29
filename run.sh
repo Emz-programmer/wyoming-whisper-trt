@@ -1,13 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Navigate to the application directory
 cd /usr/src/wyoming-whisper-trt
-
-pip3 list 
-
-pip3 install -r requirements.txt
-
 # Launch the main application
 python3 -m wyoming_whisper_trt \
     --model "${MODEL:-base}" \

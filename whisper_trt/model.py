@@ -31,6 +31,8 @@ import torch.nn as nn
 import torch2trt
 import tensorrt
 
+from huggingface_hub import hf_hub_download
+
 from whisper import load_model
 from whisper.model import LayerNorm, Tensor, ModelDimensions
 from whisper.tokenizer import Tokenizer, TO_LANGUAGE_CODE
@@ -604,6 +606,9 @@ class LargeV3Builder(WhisperTRTBuilder):
 class LargeV3TurboBuilder(WhisperTRTBuilder):
     model: str = "large-v3-turbo"
 
+class DistilSmallEnBuilder(EnBuilder):
+    model: str = hf_hub_download(repo_id="distil-whisper/distil-small.en", filename="original-model.bin")
+
 
 # -----------------------------------------------------------------------------
 # MODEL FILE-NAMING & BUILDER DICTIONARIES
@@ -624,6 +629,7 @@ MODEL_FILENAMES = {
     "large-v2": "large_v2_trt.pth",
     "large-v3": "large_v3_trt.pth",
     "large-v3-turbo": "large_v3_turbo_trt.pth",
+    "distil-small.en": "distil_small_en_trt.pth",
 }
 
 MODEL_BUILDERS = {
@@ -640,6 +646,8 @@ MODEL_BUILDERS = {
     "large-v2": LargeV2Builder,
     "large-v3": LargeV3Builder,
     "large-v3-turbo": LargeV3TurboBuilder,
+    # Distil models
+    "distil-small.en": DistilSmallEnBuilder,
 }
 
 

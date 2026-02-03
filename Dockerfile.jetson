@@ -24,9 +24,11 @@ RUN pip3 install --index-url https://pypi.org/simple --extra-index-url https://p
     packaging~=26.0 \
     onnx~=1.19.1 \
     onnxscript~=0.5.6 \
-    onnx-graphsurgeon==0.5.8
+    onnx-graphsurgeon==0.5.8 \
+    huggingface_hub>=0.23
 
-RUN git clone --recursive https://github.com/JonahMMay/wyoming-whisper-trt
+
+RUN git clone -b alt-jetson-approach --recursive https://github.com/Emz-programmer/wyoming-whisper-trt
 
 WORKDIR /
 COPY ./run.sh ./

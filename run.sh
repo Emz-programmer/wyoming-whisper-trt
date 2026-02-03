@@ -2,6 +2,8 @@
 set -euo pipefail
 
 cd /usr/src/wyoming-whisper-trt
+
+git pull
 # Launch the main application
 python3 -m wyoming_whisper_trt \
     --model "${MODEL:-base}" \

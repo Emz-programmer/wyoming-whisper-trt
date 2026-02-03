@@ -609,6 +609,10 @@ class LargeV3TurboBuilder(WhisperTRTBuilder):
 class DistilSmallEnBuilder(EnBuilder):
     model: str = hf_hub_download(repo_id="distil-whisper/distil-small.en", filename="original-model.bin")
 
+class DistilMediumEnBuilder(EnBuilder):
+    model: str = hf_hub_download(repo_id="distil-whisper/distil-medium.en", filename="original-model.bin")
+    max_workspace_size = 1 << 33
+
 
 # -----------------------------------------------------------------------------
 # MODEL FILE-NAMING & BUILDER DICTIONARIES
@@ -630,6 +634,7 @@ MODEL_FILENAMES = {
     "large-v3": "large_v3_trt.pth",
     "large-v3-turbo": "large_v3_turbo_trt.pth",
     "distil-small.en": "distil_small_en_trt.pth",
+    "distil-medium.en": "distil_medium_en_trt.pth",
 }
 
 MODEL_BUILDERS = {
@@ -648,6 +653,7 @@ MODEL_BUILDERS = {
     "large-v3-turbo": LargeV3TurboBuilder,
     # Distil models
     "distil-small.en": DistilSmallEnBuilder,
+    "distil-medium.en": DistilMediumEnBuilder,
 }
 
 

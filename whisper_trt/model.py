@@ -400,7 +400,7 @@ class WhisperTRTBuilder:
         engine = torch2trt.torch2trt(
             decoder_blocks_module,
             [x, xa, mask],
-            use_onnx=True,
+            use_onnx=False,
             min_shapes=[
                 (1, 1, dims.n_text_state),
                 (1, 1, dims.n_audio_state),
@@ -441,7 +441,7 @@ class WhisperTRTBuilder:
         engine = torch2trt.torch2trt(
             encoder_module,
             [x, positional_embedding],
-            use_onnx=True,
+            use_onnx=False,
             min_shapes=[(1, dims.n_mels, 1), (1, dims.n_audio_state)],
             opt_shapes=[
                 (1, dims.n_mels, n_frames),
@@ -611,7 +611,7 @@ class DistilSmallEnBuilder(EnBuilder):
 
 class DistilMediumEnBuilder(EnBuilder):
     model: str = hf_hub_download(repo_id="distil-whisper/distil-medium.en", filename="original-model.bin")
-    max_workspace_size = 1 << 33
+    
 
 
 # -----------------------------------------------------------------------------

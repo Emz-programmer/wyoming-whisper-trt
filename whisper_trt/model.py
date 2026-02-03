@@ -384,8 +384,11 @@ class WhisperTRTBuilder:
     @torch.no_grad()
     def _load_model_once(cls) -> ModelDimensions:
         if cls._dims is None:
-            model_inst = load_model(cls.model).cuda().eval()
-            cls._dims = model_inst.dims
+            model_inst = load_model(cls.model, device="cpu").eval()
+            try:
+                cls._dims = model_inst.dims
+            finally:
+                del model_inst
         return cls._dims
 
     @classmethod
@@ -400,7 +403,7 @@ class WhisperTRTBuilder:
         engine = torch2trt.torch2trt(
             decoder_blocks_module,
             [x, xa, mask],
-            use_onnx=False,
+            use_onnx=True,
             min_shapes=[
                 (1, 1, dims.n_text_state),
                 (1, 1, dims.n_audio_state),
@@ -441,7 +444,7 @@ class WhisperTRTBuilder:
         engine = torch2trt.torch2trt(
             encoder_module,
             [x, positional_embedding],
-            use_onnx=False,
+            use_onnx=True,
             min_shapes=[(1, dims.n_mels, 1), (1, dims.n_audio_state)],
             opt_shapes=[
                 (1, dims.n_mels, n_frames),
@@ -483,12 +486,23 @@ class WhisperTRTBuilder:
     def build(cls, output_path: str, verbose: bool = False) -> None:
         cls.verbose = verbose
         dims = asdict(load_model(cls.model).dims)
+        decoder_path = os.path.join(get_cache_dir(), "text_decoder_engine.pth")
+        encoder_path = os.path.join(get_cache_dir(), "audio_encoder_engine.pth")
+
+        text_decoder = cls.build_text_decoder_engine().state_dict()
+        torch.save(text_decoder, decoder_path)
+        del text_decoder
+        
+        audio_encoder = cls.build_audio_encoder_engine().state_dict()
+        torch.save(audio_encoder, encoder_path)
+        del audio_encoder
+
         checkpoint = {
             "whisper_trt_version": __version__,
             "dims": dims,
-            "text_decoder_engine": cls.build_text_decoder_engine().state_dict(),
+            "text_decoder_engine": TRTModule().load_state_dict(decoder_path),
             "text_decoder_extra_state": cls.get_text_decoder_extra_state(),
-            "audio_encoder_engine": cls.build_audio_encoder_engine().state_dict(),
+            "audio_encoder_engine": TRTModule().load_state_dict(encoder_path),
             "audio_encoder_extra_state": cls.get_audio_encoder_extra_state(),
         }
         torch.save(checkpoint, output_path)
@@ -611,6 +625,7 @@ class DistilSmallEnBuilder(EnBuilder):
 
 class DistilMediumEnBuilder(EnBuilder):
     model: str = hf_hub_download(repo_id="distil-whisper/distil-medium.en", filename="original-model.bin")
+    max_workspace_size = 1 << 32
     
 
 

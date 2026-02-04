@@ -7,8 +7,8 @@ WORKDIR /usr/src
 RUN apt-get update && apt-get install -y \
     python3-venv \
     ffmpeg \
-    git \
-    && git clone --recursive https://github.com/JonahMMay/wyoming-whisper-trt \
+    git 
+RUN git clone -b gpu-mem-fix --recursive https://github.com/Emz-programmer/wyoming-whisper-trt \
     && cd wyoming-whisper-trt \
     && chmod +x ./script/setup \
     && ./script/setup \

@@ -1,12 +1,15 @@
 services:
   wyoming-whisper-trt:
-    image: captnspdr/wyoming-whisper-trt:latest
+    image: wyoming-whisper-trt:jetson-test
     container_name: wyoming-whisper-trt
     ports:
       - 10300:10300
+    volumes:
+      - ./whisper/data:/data
+      - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     environment:
-      MODEL:      "${MODEL:-base}"
+      MODEL:      "${MODEL:-distil-medium.en}"
       LANGUAGE:   "${LANGUAGE:-auto}"
       URI:        "${URI:-tcp://0.0.0.0:10300}"
       DATA_DIR:   "${DATA_DIR:-/data}"

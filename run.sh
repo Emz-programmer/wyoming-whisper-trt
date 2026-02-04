@@ -1,9 +1,28 @@
 #!/bin/bash
-set -euo pipefail
+
 
 cd /usr/src/wyoming-whisper-trt
 
-git pull
+# Check if the virtual environment is present; if not, run setup
+if [ ! -d ".venv" ]; then
+    echo "Virtual environment (.venv) not found. Running setup..."
+    chmod +x script/setup
+    ./script/setup
+fi
+
+# Activate the Python virtual environment
+source .venv/bin/activate
+
+# Check if torch2trt is installed in this venv
+python -c "import torch2trt" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "torch2trt not found. Installing via script/setup..."
+    chmod +x script/setup
+    ./script/setup
+else
+    echo "torch2trt is already installed. Skipping setup."
+fi
+
 # Launch the main application
 python3 -m wyoming_whisper_trt \
     --model "${MODEL:-base}" \

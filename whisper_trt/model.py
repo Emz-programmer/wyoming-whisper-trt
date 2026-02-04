@@ -356,7 +356,7 @@ class WhisperTRT(nn.Module):
 
     def _decode_tokens(self, tokens: torch.Tensor) -> str:
         """Decode tokens to text, removing special markers."""
-        text = self.tokenizer.decode(list(tokens.flatten().cpu().numpy()))
+        text = self.tokenizer.decode(list(tokens.flatten().cuda().numpy()))
         # strip any special markers, including end-of-text
 
         return (
@@ -384,7 +384,7 @@ class WhisperTRTBuilder:
     @torch.no_grad()
     def _load_model_once(cls) -> ModelDimensions:
         if cls._dims is None:
-            model_inst = load_model(cls.model, device="cpu").eval()
+            model_inst = load_model(cls.model, device="cuda").eval()
             try:
                 cls._dims = model_inst.dims
             finally:
@@ -395,7 +395,7 @@ class WhisperTRTBuilder:
     @torch.no_grad()
     def build_text_decoder_engine(cls) -> torch2trt.TRTModule:
         dims = cls._load_model_once()
-        model_inst = load_model(cls.model).cpu().eval()
+        model_inst = load_model(cls.model).cuda().eval()
         decoder_blocks_module = _TextDecoderEngine(model_inst.decoder.blocks).cuda()
         del model_inst
         x = torch.randn(1, 1, dims.n_text_state).cuda()
@@ -489,7 +489,7 @@ class WhisperTRTBuilder:
     @torch.no_grad()
     def build(cls, output_path: str, verbose: bool = False) -> None:
         cls.verbose = verbose
-        dims = asdict(load_model(cls.model, device="cpu").dims)
+        dims = asdict(load_model(cls.model, device="cuda").dims)
         decoder_path = os.path.join(get_cache_dir(), "text_decoder_engine.pth")
         encoder_path = os.path.join(get_cache_dir(), "audio_encoder_engine.pth")
 
@@ -632,7 +632,7 @@ class DistilSmallEnBuilder(EnBuilder):
 
 class DistilMediumEnBuilder(EnBuilder):
     model: str = hf_hub_download(repo_id="distil-whisper/distil-medium.en", filename="original-model.bin")
-    max_workspace_size = 6442450944
+    max_workspace_size = 1 << 32
     
 
 

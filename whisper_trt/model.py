@@ -30,6 +30,7 @@ import numpy as np
 import torch.nn as nn
 import torch2trt
 import tensorrt
+import gc
 
 from huggingface_hub import hf_hub_download
 
@@ -395,13 +396,19 @@ class WhisperTRTBuilder:
     @torch.no_grad()
     def build_text_decoder_engine(cls) -> torch2trt.TRTModule:
         dims = cls._load_model_once()
+        torch.cuda.empty_cache()
+        gc.collect()
         model_inst = load_model(cls.model).cpu().eval()
         decoder_blocks_module = _TextDecoderEngine(model_inst.decoder.blocks).cuda()
         del model_inst
         x = torch.randn(1, 1, dims.n_text_state).cuda()
         xa = torch.randn(1, dims.n_audio_ctx, dims.n_audio_state).cuda()
         mask = torch.randn(dims.n_text_ctx, dims.n_text_ctx).cuda()
+
+        torch.cuda.empty_cache()
+        
         logger.info("starting torch2trt conversion")
+
         engine = torch2trt.torch2trt(
             decoder_blocks_module,
             [x, xa, mask],
@@ -425,7 +432,7 @@ class WhisperTRTBuilder:
             output_names=["output"],
             max_workspace_size=cls.max_workspace_size,
             fp16_mode=cls.fp16_mode,
-            log_level=tensorrt.Logger.VERBOSE #if cls.verbose else tensorrt.Logger.ERROR,
+            log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR,
         )
         logger.info("retunrning decoder")
         return engine
@@ -433,18 +440,28 @@ class WhisperTRTBuilder:
     @classmethod
     @torch.no_grad()
     def build_audio_encoder_engine(cls) -> torch2trt.TRTModule:
+        logger.info("loading dimensions")
         dims = cls._load_model_once()
-        model_inst = load_model(cls.model).cuda().eval()
+        gc.collect()
+        logger.info("loading model instance")
+        model_inst = load_model(cls.model, device="cpu").eval()
+        logger.info("loading encoder module")
         encoder_module = _AudioEncoderEngine(
             model_inst.encoder.conv1,
             model_inst.encoder.conv2,
             model_inst.encoder.blocks,
             model_inst.encoder.ln_post,
         ).cuda()
+        logger.info("loading frames")
         n_frames = dims.n_audio_ctx * 2
-        x = torch.randn(1, dims.n_mels, n_frames).cuda()
+        logger.info("loading x frames")
+        x = torch.randn(1, dims.n_mels, n_frames, device="cuda")
+        logger.info("loading positional embedding")
         positional_embedding = model_inst.encoder.positional_embedding.cuda().detach()
         del model_inst
+        gc.collect()
+        
+        logger.info("starting torch2trt conversion")
         engine = torch2trt.torch2trt(
             encoder_module,
             [x, positional_embedding],
@@ -462,7 +479,7 @@ class WhisperTRTBuilder:
             output_names=["output"],
             max_workspace_size=cls.max_workspace_size,
             fp16_mode=cls.fp16_mode,
-            log_level=tensorrt.Logger.VERBOSE #if cls.verbose else tensorrt.Logger.ERROR,
+            log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR,
         )
         return engine
 
@@ -493,23 +510,32 @@ class WhisperTRTBuilder:
         decoder_path = os.path.join(get_cache_dir(), "text_decoder_engine.pth")
         encoder_path = os.path.join(get_cache_dir(), "audio_encoder_engine.pth")
 
-        logger.info("building text decoder")
-        text_decoder = cls.build_text_decoder_engine().state_dict()
-        logger.info("built text decoder")
-        torch.save(text_decoder, decoder_path)
-        ("saved text decoder to: ", decoder_path)
-        del text_decoder
-        
-        audio_encoder = cls.build_audio_encoder_engine().state_dict()
-        torch.save(audio_encoder, encoder_path)
-        del audio_encoder
+        if not os.path.exists(encoder_path):
+            make_cache_dir()        
+            logger.info("building audio encoder")
+            audio_encoder = cls.build_audio_encoder_engine().state_dict()
+            logger.info("build audio encoder")        
+            torch.save(audio_encoder, encoder_path)
+ 
+        gc.collect()
+
+        if not os.path.exists(decoder_path):
+            logger.info("building text decoder")
+            text_decoder = cls.build_text_decoder_engine().state_dict()
+            logger.info("built text decoder")
+            torch.save(text_decoder, decoder_path)
+            logger.info("saved text decoder")
+
+        gc.collect()
+
+        torch.cuda.empty_cache()
 
         checkpoint = {
             "whisper_trt_version": __version__,
             "dims": dims,
-            "text_decoder_engine": TRTModule().load_state_dict(decoder_path),
+            "text_decoder_engine":  torch2trt.TRTModule().load_state_dict(torch.load(decoder_path)).cuda(),
             "text_decoder_extra_state": cls.get_text_decoder_extra_state(),
-            "audio_encoder_engine": TRTModule().load_state_dict(encoder_path),
+            "audio_encoder_engine": torch2trt.TRTModule().load_state_dict(torch.load(encoder_path)).cuda(),
             "audio_encoder_extra_state": cls.get_audio_encoder_extra_state(),
         }
         torch.save(checkpoint, output_path)
@@ -632,7 +658,7 @@ class DistilSmallEnBuilder(EnBuilder):
 
 class DistilMediumEnBuilder(EnBuilder):
     model: str = hf_hub_download(repo_id="distil-whisper/distil-medium.en", filename="original-model.bin")
-    max_workspace_size = 6442450944
+    max_workspace_size = 1 << 30
     
 
 

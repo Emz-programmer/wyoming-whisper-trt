@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     ffmpeg \
     git 
+
+# Prepare repo
 RUN git clone -b gpu-mem-fix --recursive https://github.com/Emz-programmer/wyoming-whisper-trt \
     && cd wyoming-whisper-trt \
     && chmod +x ./script/setup \

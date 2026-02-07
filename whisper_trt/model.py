@@ -490,6 +490,7 @@ class WhisperTRTBuilder:
     def build(cls, output_path: str, verbose: bool = False) -> None:
         cls.verbose = verbose
         dims = asdict(load_model(cls.model, device="cuda").dims)
+        make_cache_dir()
         decoder_path = os.path.join(get_cache_dir(), "text_decoder_engine.pth")
         encoder_path = os.path.join(get_cache_dir(), "audio_encoder_engine.pth")
 
@@ -497,7 +498,7 @@ class WhisperTRTBuilder:
         text_decoder = cls.build_text_decoder_engine().state_dict()
         logger.info("built text decoder")
         torch.save(text_decoder, decoder_path)
-        ("saved text decoder to: ", decoder_path)
+        ("saved text decoder")
         del text_decoder
         
         audio_encoder = cls.build_audio_encoder_engine().state_dict()
@@ -507,9 +508,9 @@ class WhisperTRTBuilder:
         checkpoint = {
             "whisper_trt_version": __version__,
             "dims": dims,
-            "text_decoder_engine": TRTModule().load_state_dict(decoder_path),
+            "text_decoder_engine": torch2trt.TRTModule().load_state_dict(decoder_path),
             "text_decoder_extra_state": cls.get_text_decoder_extra_state(),
-            "audio_encoder_engine": TRTModule().load_state_dict(encoder_path),
+            "audio_encoder_engine": torch2trt.TRTModule().load_state_dict(encoder_path),
             "audio_encoder_extra_state": cls.get_audio_encoder_extra_state(),
         }
         torch.save(checkpoint, output_path)

@@ -24,3 +24,20 @@ index cba0b39..d8f4e2b 100644
              if onnx_opset is not None:
                  export_args["opset_version"] = onnx_opset
              torch.onnx.export(**export_args)
+@@ -533,6 +533,7 @@ def torch2trt(module,
+               onnx_opset=None,
+               max_batch_size=None,
+               avg_timing_iterations=None,
++              compatibility_level=trt.HardwareCompatibilityLevel.NONE,
+               **kwargs):
+ 
+     # capture arguments to provide to context
+@@ -587,6 +588,8 @@ def torch2trt(module,
+     builder = trt.Builder(logger)
+     config = builder.create_builder_config()
+ 
++    config.hardware_compatibility_level = compatibility_level
++
+     if input_names is None:
+         input_names = default_input_names(input_flattener.size)
+     if output_names is None:

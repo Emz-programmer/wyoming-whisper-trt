@@ -425,7 +425,8 @@ class WhisperTRTBuilder:
             output_names=["output"],
             max_workspace_size=cls.max_workspace_size,
             fp16_mode=cls.fp16_mode,
-            log_level=tensorrt.Logger.VERBOSE #if cls.verbose else tensorrt.Logger.ERROR,
+            log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR,
+            compatibility_level=tensorrt.HardwareCompatibilityLevel.AMPERE_PLUS
         )
         logger.info("retunrning decoder")
         return engine
@@ -462,7 +463,8 @@ class WhisperTRTBuilder:
             output_names=["output"],
             max_workspace_size=cls.max_workspace_size,
             fp16_mode=cls.fp16_mode,
-            log_level=tensorrt.Logger.VERBOSE #if cls.verbose else tensorrt.Logger.ERROR,
+            log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR,
+            compatibility_level=tensorrt.HardwareCompatibilityLevel.AMPERE_PLUS
         )
         return engine
 
@@ -499,18 +501,16 @@ class WhisperTRTBuilder:
         logger.info("built text decoder")
         torch.save(text_decoder, decoder_path)
         ("saved text decoder")
-        del text_decoder
         
         audio_encoder = cls.build_audio_encoder_engine().state_dict()
         torch.save(audio_encoder, encoder_path)
-        del audio_encoder
 
         checkpoint = {
             "whisper_trt_version": __version__,
             "dims": dims,
-            "text_decoder_engine": torch2trt.TRTModule().load_state_dict(decoder_path),
+            "text_decoder_engine": text_decoder,
             "text_decoder_extra_state": cls.get_text_decoder_extra_state(),
-            "audio_encoder_engine": torch2trt.TRTModule().load_state_dict(encoder_path),
+            "audio_encoder_engine": audio_encoder,
             "audio_encoder_extra_state": cls.get_audio_encoder_extra_state(),
         }
         torch.save(checkpoint, output_path)

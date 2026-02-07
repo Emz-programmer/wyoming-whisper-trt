@@ -31,9 +31,11 @@ import torch.nn as nn
 import torch2trt
 import tensorrt
 import gc
+import onnx_graphsurgeon as gs
+import onnx
 
 from huggingface_hub import hf_hub_download
-
+from torch2trt import Flattener
 from whisper import load_model
 from whisper.model import LayerNorm, Tensor, ModelDimensions
 from whisper.tokenizer import Tokenizer, TO_LANGUAGE_CODE
@@ -442,10 +444,10 @@ class WhisperTRTBuilder:
     def build_audio_encoder_engine(cls) -> torch2trt.TRTModule:
         logger.info("loading dimensions")
         dims = cls._load_model_once()
-        gc.collect()
         logger.info("loading model instance")
         model_inst = load_model(cls.model, device="cpu").eval()
         logger.info("loading encoder module")
+
         encoder_module = _AudioEncoderEngine(
             model_inst.encoder.conv1,
             model_inst.encoder.conv2,
@@ -455,32 +457,121 @@ class WhisperTRTBuilder:
         logger.info("loading frames")
         n_frames = dims.n_audio_ctx * 2
         logger.info("loading x frames")
-        x = torch.randn(1, dims.n_mels, n_frames, device="cuda")
+        x = torch.randn(1, dims.n_mels, n_frames).cuda()
         logger.info("loading positional embedding")
         positional_embedding = model_inst.encoder.positional_embedding.cuda().detach()
-        del model_inst
-        gc.collect()
+
+        inputs = [x, positional_embedding]
+
+        min_shapes=[(1, dims.n_mels, 1), (1, dims.n_audio_state)]
+        opt_shapes=[
+            (1, dims.n_mels, n_frames),
+            (dims.n_audio_ctx, dims.n_audio_state),
+        ]
+        max_shapes=[
+            (1, dims.n_mels, n_frames),
+            (dims.n_audio_ctx, dims.n_audio_state),
+        ]
+        input_names=["x", "positional_embedding"]
+        output_names=["output"]
+        max_workspace_size=cls.max_workspace_size
+        fp16_mode=cls.fp16_mode
+
+        log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR
+        outputs = encoder_module(*inputs)
+        input_flattener = Flattener.from_value(inputs)
+        output_flattener = Flattener.from_value(outputs)
+
+        if min_shapes is None:
+            min_shapes_flat = [tuple(t) for t in dataset.min_shapes(flat=True)]
+        else:
+            min_shapes_flat = input_flattener.flatten(min_shapes)
+
+        if max_shapes is None:
+            max_shapes_flat = [tuple(t) for t in dataset.max_shapes(flat=True)]
+        else:
+            max_shapes_flat = input_flattener.flatten(max_shapes)
         
-        logger.info("starting torch2trt conversion")
-        engine = torch2trt.torch2trt(
-            encoder_module,
-            [x, positional_embedding],
-            use_onnx=True,
-            min_shapes=[(1, dims.n_mels, 1), (1, dims.n_audio_state)],
-            opt_shapes=[
-                (1, dims.n_mels, n_frames),
-                (dims.n_audio_ctx, dims.n_audio_state),
-            ],
-            max_shapes=[
-                (1, dims.n_mels, n_frames),
-                (dims.n_audio_ctx, dims.n_audio_state),
-            ],
-            input_names=["x", "positional_embedding"],
-            output_names=["output"],
-            max_workspace_size=cls.max_workspace_size,
-            fp16_mode=cls.fp16_mode,
-            log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR,
-        )
+        if opt_shapes is None:
+            opt_shapes_flat = [tuple(t) for t in dataset.median_numel_shapes(flat=True)]
+        else:
+            opt_shapes_flat = input_flattener.flatten(opt_shapes)
+
+        dynamic_axes_flat = torch2trt.infer_dynamic_axes(min_shapes_flat, max_shapes_flat)        
+
+        trtlogger = tensorrt.Logger(log_level)
+        builder = tensorrt.Builder(trtlogger)
+        config = builder.create_builder_config()
+
+        # logger.info("loading onnx files")
+        # encoder_onnx_path = os.path.join(get_cache_dir(), "encoder_model.onnx")
+        # onnx_graph = gs.import_onnx(onnx.load(encoder_onnx_path))
+        # onnx_graph.fold_constants().cleanup()
+        
+        encoder_clean_path = os.path.join(get_cache_dir(), "encoder_clean.onnx")
+        # onnx.save(gs.export_onnx(onnx_graph), encoder_clean_path)
+        # logger.info("Finished onnx parsing, cleaning up.")
+        # torch.cuda.empty_cache()
+        # del onnx_graph
+        # gc.collect()
+
+        network = builder.create_network(1 << int(tensorrt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH))
+        parser = tensorrt.OnnxParser(network, trtlogger)
+        # Use context manager to read ONNX file if needed
+        if hasattr(parser, "parse_from_file"):
+            parsed = parser.parse_from_file(encoder_clean_path)
+        else:
+            with open(encoder_clean_path, "rb") as f:
+                parsed = parser.parse(f.read())
+        # Log parse errors:
+        if not parsed:
+            for i in range(parser.num_errors):
+                logger.log(tensorrt.Logger.ERROR, str(parser.get_error(i)))
+            raise RuntimeError("Failed to parse ONNX model.")
+
+        if fp16_mode:
+            config.set_flag(tensorrt.BuilderFlag.FP16)
+
+        # OPTIMIZATION PROFILE
+        profile = builder.create_optimization_profile()
+        for index, name in enumerate(input_names):
+            profile.set_shape(
+                name,
+                min_shapes_flat[index],
+                opt_shapes_flat[index],
+                max_shapes_flat[index]
+            )
+        del parsed
+        gc.collect()
+        torch.cuda.empty_cache()
+        config.add_optimization_profile(profile)
+        logger.info("building engine")
+        engine = builder.build_serialized_network(network, config)
+        gc.collect()
+        torch.cuda.empty_cache()
+        logger.info("building module")
+        module_trt = torch2trt.TRTModule(engine, input_names, output_names, input_flattener=input_flattener, output_flattener=output_flattener,)
+        
+        # logger.info("starting torch2trt conversion")
+        # engine = torch2trt.torch2trt(
+        #     encoder_module,
+        #     [x, positional_embedding],
+        #     use_onnx=True,
+        #     min_shapes=[(1, dims.n_mels, 1), (1, dims.n_audio_state)],
+        #     opt_shapes=[
+        #         (1, dims.n_mels, n_frames),
+        #         (dims.n_audio_ctx, dims.n_audio_state),
+        #     ],
+        #     max_shapes=[
+        #         (1, dims.n_mels, n_frames),
+        #         (dims.n_audio_ctx, dims.n_audio_state),
+        #     ],
+        #     input_names=["x", "positional_embedding"],
+        #     output_names=["output"],
+        #     max_workspace_size=cls.max_workspace_size,
+        #     fp16_mode=cls.fp16_mode,
+        #     log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR,
+        # )
         return engine
 
     @classmethod

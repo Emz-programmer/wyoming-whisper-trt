@@ -27,6 +27,9 @@ RUN pip3 install --index-url https://pypi.org/simple --extra-index-url https://p
     onnx-graphsurgeon==0.5.8 \
     huggingface_hub>=0.23
 
+# RUN wget https://files.pythonhosted.org/packages/a9/92/975eb4b3cc8a29afe81f3a029be1f19d39af46d047336af7d061c8103dfd/torch_tensorrt-2.8.0-cp312-cp312-manylinux_2_28_aarch64.whl \
+#     && pip3 install ./torch_tensorrt-2.8.0-cp312-cp312-manylinux_2_28_aarch64.whl
+
 
 RUN git clone -b alt-jetson-approach --recursive https://github.com/Emz-programmer/wyoming-whisper-trt
 

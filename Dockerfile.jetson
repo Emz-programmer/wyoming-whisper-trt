@@ -28,18 +28,18 @@ RUN pip3 install --index-url https://pypi.org/simple --extra-index-url https://p
     huggingface_hub>=0.23 \
     pyyaml
 
-RUN wget https://github.com/bazelbuild/bazelisk/releases/download/v1.26.0/bazelisk-linux-arm64 \
-    && mv bazelisk-linux-arm64 /usr/bin/bazel \
-    && chmod +x /usr/bin/bazel \
-    && apt-get install -y ninja-build vim libopenblas-dev \
-    && mkdir pytorch-trt
+# RUN wget https://github.com/bazelbuild/bazelisk/releases/download/v1.26.0/bazelisk-linux-arm64 \
+#     && mv bazelisk-linux-arm64 /usr/bin/bazel \
+#     && chmod +x /usr/bin/bazel \
+#     && apt-get install -y ninja-build vim libopenblas-dev \
+#     && mkdir pytorch-trt
 
-WORKDIR /usr/src/pytorch-trt
+# WORKDIR /usr/src/pytorch-trt
 
-RUN git clone -b release/2.8 https://github.com/pytorch/TensorRT.git \
-    && cd TensorRT \
-    && python setup.py bdist_wheel --jetpack \
-    && pip3 install ./dist/*.whl
+# RUN git clone -b release/2.8 https://github.com/pytorch/TensorRT.git \
+#     && cd TensorRT \
+#     && python setup.py bdist_wheel --jetpack \
+#     && pip3 install ./dist/*.whl
 
 # RUN wget https://github.com/pytorch/TensorRT/releases/download/v2.8.0/torch_tensorrt-2.8.0+cu126-cp310-cp310-linux_aarch64.whl \
 #     && pip3 install ./torch_tensorrt-2.8.0+cu126-cp310-cp310-linux_aarch64.whl

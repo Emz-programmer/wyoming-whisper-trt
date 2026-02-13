@@ -30,7 +30,7 @@ import numpy as np
 import torch.nn as nn
 import torch2trt
 import tensorrt
-import torch_tensorrt
+# import torch_tensorrt
 import gc
 import onnx_graphsurgeon as gs
 import onnx
@@ -453,54 +453,54 @@ class WhisperTRTBuilder:
         )
         n_frames = dims.n_audio_ctx * 2
 
-        logger.info("creating tensor inputs")
-        inputs = [
-            torch_tensorrt.Input(
-                min_shape=(1, dims.n_mels, 1),
-                opt_shape=(1, dims.n_mels, n_frames),
-                max_shape=(1, dims.n_mels, n_frames),
-                dtype=torch.float32,
-                name="x"
-            ),
-            torch_tensorrt.Input(
-                min_shape=(1, dims.n_audio_state), # Adjusting based on your snippet logic
-                opt_shape=(dims.n_audio_ctx, dims.n_audio_state),
-                max_shape=(dims.n_audio_ctx, dims.n_audio_state),
-                dtype=torch.float32,
-                name="positional_embedding"
-            )
-        ]
+        # logger.info("creating tensor inputs")
+        # inputs = [
+        #     torch_tensorrt.Input(
+        #         min_shape=(1, dims.n_mels, 1),
+        #         opt_shape=(1, dims.n_mels, n_frames),
+        #         max_shape=(1, dims.n_mels, n_frames),
+        #         dtype=torch.float32,
+        #         name="x"
+        #     ),
+        #     torch_tensorrt.Input(
+        #         min_shape=(1, dims.n_audio_state), # Adjusting based on your snippet logic
+        #         opt_shape=(dims.n_audio_ctx, dims.n_audio_state),
+        #         max_shape=(dims.n_audio_ctx, dims.n_audio_state),
+        #         dtype=torch.float32,
+        #         name="positional_embedding"
+        #     )
+        # ]
 
-        del model_inst
-        del dims
-        logger.info("compiling model")
-        engine = torch_tensorrt.compile(
-            encoder_module,
-            inputs=inputs,
-            enabled_precisions={torch.half} if cls.fp16_mode else {torch.float32},
-            workspace_size=cls.max_workspace_size,
-        )
-
-        # logger.info("starting torch2trt conversion")
-        # engine = torch2trt.torch2trt(
+        # del model_inst
+        # del dims
+        # logger.info("compiling model")
+        # engine = torch_tensorrt.compile(
         #     encoder_module,
-        #     [x, positional_embedding],
-        #     use_onnx=True,
-        #     min_shapes=[(1, dims.n_mels, 1), (1, dims.n_audio_state)],
-        #     opt_shapes=[
-        #         (1, dims.n_mels, n_frames),
-        #         (dims.n_audio_ctx, dims.n_audio_state),
-        #     ],
-        #     max_shapes=[
-        #         (1, dims.n_mels, n_frames),
-        #         (dims.n_audio_ctx, dims.n_audio_state),
-        #     ],
-        #     input_names=["x", "positional_embedding"],
-        #     output_names=["output"],
-        #     max_workspace_size=cls.max_workspace_size,
-        #     fp16_mode=cls.fp16_mode,
-        #     log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR,
+        #     inputs=inputs,
+        #     enabled_precisions={torch.half} if cls.fp16_mode else {torch.float32},
+        #     workspace_size=cls.max_workspace_size,
         # )
+
+        logger.info("starting torch2trt conversion")
+        engine = torch2trt.torch2trt(
+            encoder_module,
+            [x, positional_embedding],
+            use_onnx=True,
+            min_shapes=[(1, dims.n_mels, 1), (1, dims.n_audio_state)],
+            opt_shapes=[
+                (1, dims.n_mels, n_frames),
+                (dims.n_audio_ctx, dims.n_audio_state),
+            ],
+            max_shapes=[
+                (1, dims.n_mels, n_frames),
+                (dims.n_audio_ctx, dims.n_audio_state),
+            ],
+            input_names=["x", "positional_embedding"],
+            output_names=["output"],
+            max_workspace_size=cls.max_workspace_size,
+            fp16_mode=cls.fp16_mode,
+            log_level=tensorrt.Logger.VERBOSE if cls.verbose else tensorrt.Logger.ERROR,
+        )
         return engine
 
     @classmethod

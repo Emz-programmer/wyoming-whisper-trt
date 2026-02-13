@@ -1,0 +1,38 @@
+# Use the base TensorRT image
+FROM pytorch_trt:r36.4.tegra-aarch64-cu129-24.04
+
+WORKDIR /usr/src
+
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_REQUIRE_JETPACK_HOST_MOUNTS=base-only
+
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=$CUDA_HOME/bin:$PATH
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu:${LD_LIBRARY_PATH}
+
+# Update and install python3-venv, clone the repository, and run the setup script
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    git 
+
+# Setup python deps
+RUN pip3 install --index-url https://pypi.org/simple --extra-index-url https://pypi.nvidia.com \
+    wyoming==1.8.0 \
+    openai-whisper==20250625 \
+    psutil~=7.2.1 \
+    packaging~=26.0 \
+    onnx~=1.19.1 \
+    onnxscript~=0.5.6 \
+    onnx-graphsurgeon==0.5.8 \
+    huggingface_hub>=0.23 \
+    pyyaml
+
+RUN git clone -b alt-jetson-approach --recursive https://github.com/Emz-programmer/wyoming-whisper-trt
+
+WORKDIR /
+COPY ./run.sh ./
+    
+EXPOSE 10300
+    
+ENTRYPOINT ["bash", "/run.sh"]
